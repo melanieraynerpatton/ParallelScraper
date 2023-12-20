@@ -57,14 +57,20 @@ def find_homes(driver, zip_code):
 
 def all_pages(url): 
     try:    
+        #Create empty list
         all_pages = []
-    
+
+        #Call function to create driver and action objects
         driver, action = create_driver()
 
+        #Visit URL
         driver.get(url)
 
+        #Isolate zip code
         zip_code = url[(len(url)-5):]
+        
         try:
+            #Gather data from each page
             while EC.presence_of_element_located((By.CLASS_NAME, "clickable.buttonControl.button-text")):
                     page = find_homes(driver, zip_code)
                     all_pages.append(page)
@@ -95,22 +101,28 @@ def flatten(output, zip):
     #create df
     df = pd.DataFrame(flattened, columns=['zip_code','price','beds','baths','sqft'])
 
+    #Filter results
     df = df[(df['price']>0)&(df['beds']>0)&(df['baths']>0)]
 
+    #Output to csv file
     file = f'C:\\Users\\melac\\Desktop\\ODU M.S. DA_DS\\MSIM 715 Home Data\\home_data_{zip}_.csv'
     df.to_csv(file, index=False)
     
 def concat_zips(zip_list):
+    #Designate new file location
     new_file = 'C:\\Users\\melac\\Desktop\\ODU M.S. DA_DS\\MSIM 715 Home Data\\All Data\\home_data_all_.csv'
 
+    #Create empty data frame for concatenation
     existing_df = pd.DataFrame(columns=['zip_code','price','beds','baths','sqft'])
     existing_df = ddf.from_pandas(existing_df, npartitions=1)
 
+    #Begin concatenation loop
     for i in range(len(zip_list)):
-
+        #Gather zip code
         zips = zip_list[i]
         zip_code = zips[(len(zips)-5):]
-        print(i)
+
+        #If the file exists, concat to existing_df
         try:
             file = 'C:\\Users\\melac\\Desktop\\ODU M.S. DA_DS\\MSIM 715 Home Data\\home_data_' + zip_code +'_.csv'
 
@@ -119,30 +131,33 @@ def concat_zips(zip_list):
             existing_df = ddf.concat([existing_df, df])
         except: pass
         
-
-
+    #Output final df to csv file
     existing_df.compute().to_csv(new_file, index=False)
 
 
 
 
 if __name__ == "__main__":
+    #Create URLs using each zip code
     zip_list = ['https://www.redfin.com/zipcode/' + line.rstrip() for line in open(r'C:\Users\melac\source\repos\MSIM 715 Zillow Scraper Project\zipcodes.txt', "r").readlines()]
 
+    #Begin timer
     start = time.perf_counter()
 
+    #Spawn Pool to scrape zip codes
     for i in range(0, 300, 300):
         sliced_list = zip_list[i:i+300]
         p = Pool(processes=12) 
         p.imap_unordered(all_pages, sliced_list, chunksize=(300//12))
         p.close()
         p.join()
-        
-    #    print(f'begin concatenation; index {i}')
+
+    #Spawn Process to concatenate zip code csv files
     pr = Process(target=concat_zips, args=(sliced_list,))
     pr.start()
     pr.join()
 
+    #Stop timer and output execution time
     end = time.perf_counter()
     total = end-start
     print(f"Execution time: {round(total//60)} minutes and {round(total-((total//60)*60), 4):0f} seconds")
